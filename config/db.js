@@ -1,11 +1,21 @@
-// config/db.js
 const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // مطلوب للاتصال بقواعد بيانات Render
+    rejectUnauthorized: false // ضروري لـ Render
   }
 });
 
-module.exports = pool;
+// اختبار الاتصال
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error("فشل الاتصال بقاعدة البيانات", err);
+  } else {
+    console.log("الاتصال بقاعدة البيانات ناجح:", res.rows[0].now);
+  }
+});
+
+module.exports = {
+  query: (text, params) => pool.query(text, params)
+};

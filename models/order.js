@@ -1,4 +1,4 @@
-
+const db = require('../config/db'); // أو المسار الصحيح حسب هيكلك
 // models/order.js
 const pool = require('../config/db');
 

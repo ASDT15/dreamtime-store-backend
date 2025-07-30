@@ -1,4 +1,4 @@
-
+const db = require('../config/db'); // أو المسار الصحيح حسب هيكلك
 const pool = require('../config/db');
 
 const Product = {
