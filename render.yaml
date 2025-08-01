@@ -1,0 +1,12 @@
+# Exported from Render on 2025-08-01T18:49:11Z
+databases:
+- name: dreamtime-db
+  databaseName: dreamtime_db
+  user: dreamtime_db_user
+  plan: free
+  region: singapore
+  ipAllowList:
+  - source: 0.0.0.0/0
+    description: everywhere
+  postgresMajorVersion: "17"
+version: "1"
