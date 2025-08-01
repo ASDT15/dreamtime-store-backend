@@ -1,136 +1,126 @@
-const db = require('../config/db'); // أو المسار الصحيح حسب هيكلك
 // models/order.js
-const pool = require('../config/db');
-
+const db = require('../db'); // يجب أن يُصدر getClient
 
 const Order = {
-  // جلب جميع الطلبات (بما في ذلك المنتجات داخلها)
-  async getAll() {
-    const client = await pool.connect();
+  // جلب جميع الطلبات المعلقة
+  getAll: async () => {
     try {
-      const result = await client.query(`
-        SELECT o.*, json_agg(oi.*) as items
+      const result = await db.query(`
+        SELECT o.*, json_agg(oi) AS items
         FROM orders o
         LEFT JOIN order_items oi ON o.id = oi.order_id
         WHERE o.status = 'pending' OR o.status IS NULL
         GROUP BY o.id
         ORDER BY o.created_at DESC
       `);
-      return result.rows.map(row => ({
-        ...row,
-        items: row.items && row.items[0]?.order_id ? row.items : [] // تأكد من وجود عناصر
+      return result.rows.map(order => ({
+        ...order,
+        items: Array.isArray(order.items) && order.items[0] ? order.items : []
       }));
-    } finally {
-      client.release();
+    } catch (err) {
+      console.error('خطأ في جلب الطلبات:', err.message);
+      throw err;
     }
   },
 
   // جلب الطلبات المكتملة
-  async getCompleted() {
-    const client = await pool.connect();
+  getCompleted: async () => {
     try {
-      const result = await client.query(`
-        SELECT o.*, json_agg(oi.*) as items
+      const result = await db.query(`
+        SELECT o.*, json_agg(oi) AS items
         FROM orders o
         LEFT JOIN order_items oi ON o.id = oi.order_id
         WHERE o.status = 'completed'
         GROUP BY o.id
         ORDER BY o.created_at DESC
       `);
-      return result.rows.map(row => ({
-        ...row,
-        items: row.items && row.items[0]?.order_id ? row.items : []
+      return result.rows.map(order => ({
+        ...order,
+        items: Array.isArray(order.items) && order.items[0] ? order.items : []
       }));
-    } finally {
-      client.release();
+    } catch (err) {
+      console.error('خطأ في جلب الطلبات المكتملة:', err.message);
+      throw err;
     }
   },
 
-  // إنشاء طلب جديد - مُعدل لحل مشكلة order_id
-  async create(orderData) {
-    // استخراج البيانات المطلوبة من orderData
-    const { customer_name, items, payment_method, total_amount } = orderData;
-    
-    // *** بداية الإضافة: توليد order_id ***
-    // توليد معرف فريد للطلب يراه العميل
-    const orderIdForClient = 'ORD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5).toUpperCase();
-    // *** نهاية الإضافة ***
-    
-    const client = await pool.connect();
-    
+  // إنشاء طلب جديد
+  create: async (orderData) => {
+    const { customer_name, payment_method, total_amount, items } = orderData;
+
+    // توليد معرف فريد يُعرض للعميل
+    const order_id = 'ORD_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5).toUpperCase();
+
+    const client = await db.getClient();
+
     try {
       await client.query('BEGIN');
-      
-      // *** تعديل الاستعلام ليشمل order_id ***
+
       const orderResult = await client.query(
-        'INSERT INTO orders (order_id, customer_name, payment_method, total_amount, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-        [orderIdForClient, customer_name, payment_method, total_amount, 'pending'] // *** إضافة orderIdForClient ***
+        `INSERT INTO orders (order_id, customer_name, payment_method, total_amount, status)
+         VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
+        [order_id, customer_name, payment_method, total_amount]
       );
-      // *** نهاية التعديل ***
-      
-      // استرجاع الـ ID المولد تلقائياً
-      const generatedOrderId = orderResult.rows[0].id; 
-      
-      // الآن قم بإدخال عناصر الطلب باستخدام generatedOrderId
-      if (items && items.length > 0) {
-        const itemQueries = items.map(item => 
-          client.query(
-            'INSERT INTO order_items (order_id, product_id, quantity, size, location) VALUES ($1, $2, $3, $4, $5)',
-            [generatedOrderId, item.product_id, item.quantity, item.size, item.location]
-          )
-        );
+
+      const generatedOrderId = orderResult.rows[0].id;
+
+      if (Array.isArray(items) && items.length > 0) {
+        const itemQueries = items
+          .filter(item => item.product_id && item.quantity)
+          .map(item => client.query(
+            `INSERT INTO order_items (order_id, product_id, quantity, size, location)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [generatedOrderId, item.product_id, item.quantity, item.size || null, item.location || null]
+          ));
         await Promise.all(itemQueries);
       }
-      
+
       await client.query('COMMIT');
-      // أعد الـ ID المولد إذا لزم الأمر
-      return { success: true, orderId: generatedOrderId }; 
+      return { success: true, orderId: generatedOrderId };
     } catch (err) {
       await client.query('ROLLBACK');
-      console.error('Error creating order:', err); // تسجيل الخطأ للمساعدة في التصحيح
-      throw err; // أعد رمي الخطأ ليتم التعامل معه في route handler
+      console.error('خطأ في إنشاء الطلب:', err.message);
+      throw err;
     } finally {
       client.release();
     }
   },
 
   // وضع علامة "جاهز" على طلب
-  async markAsCompleted(orderId) {
-    const client = await pool.connect();
+  markAsCompleted: async (id) => {
+    if (isNaN(id)) throw new Error('معرف الطلب غير صالح');
+
     try {
-      // تغيير الاستعلام لاستخدام id بدلاً من order_id إذا كان id هو المفتاح الأساسي
-      await client.query('UPDATE orders SET status = $1 WHERE id = $2', ['completed', orderId]);
-      return true;
-    } finally {
-      client.release();
+      const result = await db.query(
+        'UPDATE orders SET status = $1 WHERE id = $2',
+        ['completed', id]
+      );
+      return result.rowCount > 0;
+    } catch (err) {
+      console.error('خطأ في وضع علامة جاهز:', err.message);
+      throw err;
     }
   },
 
   // حذف طلب
-  async delete(orderId) {
-    const client = await pool.connect();
+  delete: async (id) => {
+    if (isNaN(id)) throw new Error('معرف الطلب غير صالح');
+
+    const client = await db.getClient();
+
     try {
-      // تغيير الاستعلام لاستخدام id بدلاً من order_id إذا كان id هو المفتاح الأساسي
-      // CASCADE سيؤدي إلى حذف order_items المرتبطة
-      await client.query('DELETE FROM orders WHERE id = $1', [orderId]);
-      return true;
+      await client.query('BEGIN');
+      const result = await client.query('DELETE FROM orders WHERE id = $1', [id]);
+      await client.query('COMMIT');
+      return result.rowCount > 0;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('خطأ في حذف الطلب:', err.message);
+      throw err;
     } finally {
       client.release();
     }
   }
 };
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // مهم لـ Render
-  }
-});
-
-module.exports = {
-  query: (text, params) => pool.query(text, params)
-};
-
 
 module.exports = Order;

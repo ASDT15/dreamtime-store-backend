@@ -1,4 +1,4 @@
-
+// routes/products.js
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/product');
@@ -9,20 +9,51 @@ router.get('/', async (req, res) => {
     const products = await Product.getAll();
     res.json(products);
   } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('خطأ في جلب المنتجات:', error.message);
+    res.status(500).json({ 
+      error: 'خطأ داخلي في الخادم',
+      details: error.message 
+    });
+  }
+});
+
+// GET /api/products/:id - جلب منتج حسب المعرف
+router.get('/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'معرف غير صالح' });
+    }
+
+    const product = await Product.getById(id);
+    if (product) {
+      res.json(product);
+    } else {
+      res.status(404).json({ error: 'المنتج غير موجود' });
+    }
+  } catch (error) {
+    console.error('خطأ في جلب المنتج:', error.message);
+    res.status(500).json({ 
+      error: 'خطأ داخلي في الخادم',
+      details: error.message 
+    });
   }
 });
 
 // POST /api/products - إنشاء منتج جديد
 router.post('/', async (req, res) => {
   try {
-    const productData = req.body;
-    const productId = await Product.create(productData);
-    res.status(201).json({ id: productId, message: 'Product created successfully' });
+    const productId = await Product.create(req.body);
+    res.status(201).json({ 
+      id: productId, 
+      message: 'تم إنشاء المنتج بنجاح' 
+    });
   } catch (error) {
-    console.error('Error creating product:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('فشل في إنشاء المنتج:', error.message);
+    res.status(500).json({ 
+      error: 'فشل إنشاء المنتج',
+      details: error.message 
+    });
   }
 });
 
@@ -30,16 +61,22 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const productData = req.body;
-    const success = await Product.update(id, productData);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'معرف غير صالح' });
+    }
+
+    const success = await Product.update(id, req.body);
     if (success) {
-      res.json({ message: 'Product updated successfully' });
+      res.json({ message: 'تم التحديث بنجاح' });
     } else {
-      res.status(404).json({ error: 'Product not found' });
+      res.status(404).json({ error: 'المنتج غير موجود' });
     }
   } catch (error) {
-    console.error('Error updating product:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('فشل في تحديث المنتج:', error.message);
+    res.status(500).json({ 
+      error: 'فشل التحديث',
+      details: error.message 
+    });
   }
 });
 
@@ -47,33 +84,23 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'معرف غير صالح' });
+    }
+
     const success = await Product.delete(id);
     if (success) {
-      res.json({ message: 'Product deleted successfully' });
+      res.json({ message: 'تم الحذف بنجاح' });
     } else {
-      res.status(404).json({ error: 'Product not found' });
+      res.status(404).json({ error: 'المنتج غير موجود' });
     }
   } catch (error) {
-    console.error('Error deleting product:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('فشل في حذف المنتج:', error.message);
+    res.status(500).json({ 
+      error: 'فشل الحذف',
+      details: error.message 
+    });
   }
 });
-// GET /api/products/:id - جلب منتج واحد بناءً على الـ ID
-router.get('/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid product ID' });
-    }
-    const product = await Product.getById(id); // يجب أن تكون لديك هذه الدالة في models/product.js
-    if (product) {
-      res.json(product);
-    } else {
-      res.status(404).json({ error: 'Product not found' });
-    }
-  } catch (error) {
-    console.error('Error fetching product by ID:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+
 module.exports = router;

@@ -1,4 +1,3 @@
-
 // routes/orders.js
 const express = require('express');
 const router = express.Router();
@@ -10,8 +9,11 @@ router.get('/', async (req, res) => {
     const orders = await Order.getAll();
     res.json(orders);
   } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('خطأ في جلب الطلبات:', error.message);
+    res.status(500).json({ 
+      error: 'خطأ داخلي في الخادم',
+      details: error.message 
+    });
   }
 });
 
@@ -21,74 +23,78 @@ router.get('/completed', async (req, res) => {
     const orders = await Order.getCompleted();
     res.json(orders);
   } catch (error) {
-    console.error('Error fetching completed orders:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('خطأ في جلب الطلبات المكتملة:', error.message);
+    res.status(500).json({ 
+      error: 'خطأ في جلب الطلبات المكتملة',
+      details: error.message 
+    });
   }
 });
 
 // POST /api/orders - إنشاء طلب جديد
 router.post('/', async (req, res) => {
   try {
-    const orderData = req.body;
-    // استدعاء الدالة المحدثة التي تعيد كائن { success: true, orderId: generatedOrderId }
-    const result = await Order.create(orderData);
-    
+    const result = await Order.create(req.body);
     if (result.success) {
-      // إرسال orderId المولد من قاعدة البيانات
-      res.status(201).json({ id: result.orderId, message: 'Order created successfully' });
+      res.status(201).json({ 
+        id: result.orderId, 
+        message: 'تم إنشاء الطلب بنجاح' 
+      });
     } else {
-      res.status(500).json({ error: 'Failed to create order' });
+      res.status(500).json({ error: 'فشل إنشاء الطلب' });
     }
   } catch (error) {
-    console.error('Error creating order:', error);
-    // إرسال رسالة خطأ أكثر تفصيلاً إذا كانت متوفرة
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('فشل في إنشاء الطلب:', error.message);
+    res.status(500).json({ 
+      error: 'فشل إنشاء الطلب',
+      details: error.message 
+    });
   }
 });
 
-// PUT /api/orders/:orderId/complete - وضع علامة "جاهز"
-// ملاحظة مهمة: يجب التأكد من استخدام المعرف الصحيح (id أو order_id)
-router.put('/:orderId/complete', async (req, res) => {
+// PUT /api/orders/:id/complete - وضع علامة "جاهز"
+router.put('/:id/complete', async (req, res) => {
   try {
-    const orderId = req.params.orderId;
-    // استخدام parseInt للتأكد من أن orderId رقم
-    const numericOrderId = parseInt(orderId, 10);
-    if (isNaN(numericOrderId)) {
-      return res.status(400).json({ error: 'Invalid order ID' });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'معرف غير صالح' });
     }
-    
-    const success = await Order.markAsCompleted(numericOrderId);
+
+    const success = await Order.markAsCompleted(id);
     if (success) {
-      res.json({ message: 'Order marked as completed' });
+      res.json({ message: 'تم وضع علامة "جاهز"' });
     } else {
-      res.status(404).json({ error: 'Order not found' });
+      res.status(404).json({ error: 'الطلب غير موجود' });
     }
   } catch (error) {
-    console.error('Error marking order as completed:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('فشل في وضع علامة جاهز:', error.message);
+    res.status(500).json({ 
+      error: 'فشل في معالجة الطلب',
+      details: error.message 
+    });
   }
 });
 
-// DELETE /api/orders/:orderId - حذف طلب
-// ملاحظة مهمة: يجب التأكد من استخدام المعرف الصحيح (id أو order_id)
-router.delete('/:orderId', async (req, res) => {
+// DELETE /api/orders/:id - حذف طلب
+router.delete('/:id', async (req, res) => {
   try {
-    const orderId = req.params.orderId;
-    // استخدام parseInt للتأكد من أن orderId رقم
-    const numericOrderId = parseInt(orderId, 10);
-    if (isNaN(numericOrderId)) {
-      return res.status(400).json({ error: 'Invalid order ID' });
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'معرف غير صالح' });
     }
-    
-    const success = await Order.delete(numericOrderId);
+
+    const success = await Order.delete(id);
     if (success) {
-      res.json({ message: 'Order deleted successfully' });
+      res.json({ message: 'تم حذف الطلب بنجاح' });
     } else {
-      res.status(404).json({ error: 'Order not found' });
+      res.status(404).json({ error: 'الطلب غير موجود' });
     }
   } catch (error) {
-    console.error('Error deleting order:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('فشل في حذف الطلب:', error.message);
+    res.status(500).json({ 
+      error: 'فشل في الحذف',
+      details: error.message 
+    });
   }
 });
 
