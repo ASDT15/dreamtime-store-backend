@@ -5,18 +5,26 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // التحقق مما إذا كنا نستخدم قاعدة بيانات محلية
+// هذا للمطورين المحليين الذين لا يستخدمون DATABASE_URL
 const isLocalDB = process.env.LOCAL_DB === 'true';
 
-// إعداد اتصال قاعدة البيانات
-// إعطاء الأولوية لـ DATABASE_URL إذا كان موجودًا، وإلا استخدام المتغيرات الفردية
 let poolConfig = {};
 
+// *** التغيير الأساسي هنا ***
+// إعطاء الأولوية لـ DATABASE_URL. إذا كان موجودًا، نستخدمه.
 if (process.env.DATABASE_URL) {
-    // استخدام DATABASE_URL إذا تم توفيره (مفيد للـ Render)
     poolConfig.connectionString = process.env.DATABASE_URL;
     console.log("[INFO] استخدام DATABASE_URL للاتصال بقاعدة البيانات.");
+
+    // **تفعيل SSL دائمًا عند استخدام DATABASE_URL**
+    // لأن قواعد بيانات Render (والعديد من الخدمات السحابية) تتطلب SSL.
+    poolConfig.ssl = {
+        rejectUnauthorized: false // مطلوب للاتصال ب Render Postgres
+    };
+    console.log("[INFO] تفعيل SSL للاتصال بقاعدة البيانات (DATABASE_URL مستخدم).");
+
 } else if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME) {
-    // بناء الكونفيغ يدويًا من المتغيرات الفردية (مفيد محليًا)
+    // بناء الكونفيغ يدويًا من المتغيرات الفردية (مفيد محليًا بدون DATABASE_URL)
     poolConfig = {
         host: process.env.DB_HOST,
         port: parseInt(process.env.DB_PORT, 10) || 5432,
@@ -25,20 +33,23 @@ if (process.env.DATABASE_URL) {
         password: process.env.DB_PASSWORD,
     };
     console.log("[INFO] بناء connectionString يدويًا من المتغيرات البيئية الفردية.");
-} else {
-    console.error("❌ لم يتم توفير معلومات كافية للاتصال بقاعدة البيانات. تحقق من ملف .env.");
-    process.exit(1); // إنهاء العملية إذا لم توجد معلومات الاتصال
-}
 
-// إضافة إعداد SSL فقط إذا لم تكن قاعدة البيانات محلية
-if (!isLocalDB) {
-    poolConfig.ssl = {
-        rejectUnauthorized: false
-    };
-    console.log("[INFO] تفعيل SSL للاتصال بقاعدة البيانات.");
+    // تفعيل SSL فقط في البيئة المحلية إذا تم تعيين LOCAL_DB=false
+    // أو يمكنك تعطيله تمامًا محليًا كما كان في الإصدار السابق
+    if (!isLocalDB) {
+        poolConfig.ssl = {
+            rejectUnauthorized: false
+        };
+        console.log("[INFO] تفعيل SSL للاتصال بقاعدة البيانات (LOCAL_DB=false).");
+    }
+} else {
+    console.error("❌ لم يتم توفير معلومات كافية للاتصال بقاعدة البيانات. تحقق من ملف .env أو متغيرات Render.");
+    process.exit(1);
 }
 
 const pool = new Pool(poolConfig);
+
+// ... (باقي الكود كما هو: db object, initializeTables function, pool.query test) ...
 
 // تصدير دالة query و getClient
 const db = {
@@ -49,7 +60,6 @@ const db = {
 // دالة جديدة لإنشاء الجداول من ملف SQL
 db.initializeTables = async () => {
     try {
-        // تحديد المسار الكامل لملف create_tables.sql
         const sqlFilePath = path.join(__dirname, 'config', 'create_tables.sql');
         console.log(`[INFO] محاولة قراءة ملف SQL من: ${sqlFilePath}`);
 
