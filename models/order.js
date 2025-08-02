@@ -56,12 +56,18 @@ const Order = {
     try {
       await client.query('BEGIN');
 
-      const orderResult = await client.query(
-        `INSERT INTO orders (order_id, customer_name, payment_method, total_amount, status)
-         VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
-        [order_id, customer_name, payment_method, total_amount]
-      );
 
+// models/order.js
+// ... داخل دالة create ...
+const orderResult = await client.query(
+  // استخدم payment_method هنا
+  `INSERT INTO orders (customer_name, customer_phone, status, total_amount, payment_method) 
+   VALUES ($1, $2, $3, $4, $5) 
+   RETURNING id`,
+   // استخدم payment_method هنا
+  [orderData.customer_name, orderData.customer_phone, 'pending', orderData.total_amount, orderData.payment_method] 
+);
+// ... باقي الكود ...
       const generatedOrderId = orderResult.rows[0].id;
 
       if (Array.isArray(items) && items.length > 0) {
