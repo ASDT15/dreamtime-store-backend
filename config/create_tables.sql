@@ -25,21 +25,25 @@ CREATE TABLE IF NOT EXISTS product_videos (
     video_url TEXT NOT NULL
 );
 
--- جدول الطلبات الرئيسي
+-- *** إضافة هذا السطر لحذف الجدول إذا كان موجودًا ***
+DROP TABLE IF EXISTS order_items; -- حذف الجدول المرتبط أولاً
+DROP TABLE IF EXISTS orders; -- ثم حذف الجدول الرئيسي
+
 -- جدول الطلبات الرئيسي
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
-    order_id VARCHAR(50) UNIQUE NOT NULL, -- معرف الطلب الذي يراه العميل
+    order_id VARCHAR(50) UNIQUE NOT NULL,
     customer_name VARCHAR(255),
-    customer_phone VARCHAR(20), -- العمود الذي أضفته مؤخرًا
-    -- البداية: إضافة عمود طريقة الدفع --
+    customer_phone VARCHAR(20),
+    -- التأكد من أن العمود موجود --
     payment_method VARCHAR(50),
-    -- النهاية: إضافة عمود طريقة الدفع --
+    -- -------------------------- --
     total_amount DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'pending' -- pending, completed
-    -- يمكنك إضافة أعمدة أخرى حسب الحاجة
+    status VARCHAR(50) DEFAULT 'pending'
+    -- باقي الأعمدة...
 );
+-- تأكد من أن تعريفات الجداول الأخرى (مثل order_items) تأتي بعدها
 
 -- جدول عناصر الطلب (المنتجات داخل كل طلب)
 CREATE TABLE IF NOT EXISTS order_items (
