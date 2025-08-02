@@ -26,13 +26,19 @@ CREATE TABLE IF NOT EXISTS product_videos (
 );
 
 -- جدول الطلبات الرئيسي
+-- جدول الطلبات الرئيسي
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
     order_id VARCHAR(50) UNIQUE NOT NULL, -- معرف الطلب الذي يراه العميل
     customer_name VARCHAR(255),
+    customer_phone VARCHAR(20), -- العمود الذي أضفته مؤخرًا
+    -- البداية: إضافة عمود طريقة الدفع --
+    payment_method VARCHAR(50),
+    -- النهاية: إضافة عمود طريقة الدفع --
+    total_amount DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) DEFAULT 'pending' -- pending, completed
-    payment_method VARCHAR(50) 
+    -- يمكنك إضافة أعمدة أخرى حسب الحاجة
 );
 
 -- جدول عناصر الطلب (المنتجات داخل كل طلب)

@@ -101,6 +101,32 @@ router.delete('/:id', async (req, res) => {
       details: error.message 
     });
   }
+  // routes/orders.js - داخل GET /
+router.get('/', async (req, res) => {
+    try {
+        let query = `SELECT o.*, json_agg(oi) AS items
+                     FROM orders o
+                     LEFT JOIN order_items oi ON o.id = oi.order_id
+                     WHERE o.status = 'pending' OR o.status IS NULL`;
+        const queryParams = [];
+        
+        // تحقق من وجود معلمة الهاتف في الطلب
+        const phoneFilter = req.query.phone;
+        if (phoneFilter) {
+             // افترض أن لديك عمود customer_phone في جدول orders
+             // أو يمكنك ربطه بطريقة أخرى
+             query += ` AND o.customer_phone = $${queryParams.length + 1}`; 
+             queryParams.push(phoneFilter);
+        }
+        
+        query += ` GROUP BY o.id ORDER BY o.created_at DESC`;
+
+        const result = await db.query(query, queryParams);
+        // ... باقي الكود كما هو ...
+    } catch (error) {
+        // ... معالجة الأخطاء ...
+    }
+});
 });
 
 module.exports = router;
