@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS products (
     main_image_url TEXT, -- رابط الصورة الرئيسية
     type VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS size_type TEXT DEFAULT 'default';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS available_sizes JSON; -- أو TEXT إذا كنت تفضل تخزينها كنص
 );
 
 -- جدول الصور الإضافية للمنتجات

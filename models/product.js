@@ -5,6 +5,7 @@ const Product = {
   // جلب جميع المنتجات مع الصور والفيديوهات
   getAll: async () => {
     try {
+      // من المفترض أن جدول products يحتوي على أعمدة size_type و available_sizes
       const result = await db.query(`
         SELECT p.*,
                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') AS images,
@@ -31,6 +32,7 @@ const Product = {
     if (isNaN(id)) throw new Error('معرف المنتج غير صالح');
 
     try {
+      // من المفترض أن جدول products يحتوي على أعمدة size_type و available_sizes
       const result = await db.query(`
         SELECT p.*,
                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') AS images,
@@ -58,7 +60,8 @@ const Product = {
 
   // إنشاء منتج جديد
   create: async (productData) => {
-    const { name, price, description, main_image_url, type, images = [], videos = [] } = productData;
+    // استخراج الحقول الجديدة
+    const { name, price, description, main_image_url, type, images = [], videos = [], size_type = 'default', available_sizes = [] } = productData;
 
     if (!name || !price || !type) {
       throw new Error('الاسم، السعر، والنوع مطلوبون');
@@ -69,10 +72,11 @@ const Product = {
     try {
       await client.query('BEGIN');
 
+      // إدراج الحقول الجديدة size_type و available_sizes في الاستعلام
       const productResult = await client.query(
-        `INSERT INTO products (name, price, description, main_image_url, type)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [name, price, description, main_image_url, type]
+        `INSERT INTO products (name, price, description, main_image_url, type, size_type, available_sizes) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [name, price, description, main_image_url, type, size_type, JSON.stringify(available_sizes)] // تخزين المصفوفة كـ JSON
       );
 
       const productId = productResult.rows[0].id;
@@ -114,7 +118,8 @@ const Product = {
   update: async (id, productData) => {
     if (isNaN(id)) throw new Error('معرف المنتج غير صالح');
 
-    const { name, price, description, main_image_url, type, images, videos } = productData;
+    // استخراج الحقول الجديدة
+    const { name, price, description, main_image_url, type, images, videos, size_type, available_sizes } = productData;
     const client = await db.getClient();
 
     try {
@@ -126,34 +131,42 @@ const Product = {
         return false;
       }
 
+      // تحديث الحقول الجديدة size_type و available_sizes في الاستعلام
+      // استخدام COALESCE للتعامل مع القيم غير المحددة
       await client.query(
         `UPDATE products 
-         SET name = $1, price = $2, description = $3, main_image_url = $4, type = $5 
-         WHERE id = $6`,
-        [name, price, description, main_image_url, type, id]
+         SET name = $1, price = $2, description = $3, main_image_url = $4, type = $5, 
+             size_type = COALESCE($6, size_type), 
+             available_sizes = COALESCE($7, available_sizes) 
+         WHERE id = $8`,
+        [name, price, description, main_image_url, type, size_type, JSON.stringify(available_sizes), id] // تخزين المصفوفة كـ JSON
       );
 
-      await client.query('DELETE FROM product_images WHERE product_id = $1', [id]);
-      await client.query('DELETE FROM product_videos WHERE product_id = $1', [id]);
-
-      if (Array.isArray(images) && images.length > 0) {
-        const imageQueries = images
-          .filter(url => url && typeof url === 'string')
-          .map(url => client.query(
-            'INSERT INTO product_images (product_id, image_url) VALUES ($1, $2)',
-            [id, url]
-          ));
-        await Promise.all(imageQueries);
+      // تحديث الصور والفيديوهات كما كانت
+      if (images !== undefined) {
+        await client.query('DELETE FROM product_images WHERE product_id = $1', [id]);
+        if (Array.isArray(images) && images.length > 0) {
+          const imageQueries = images
+            .filter(url => url && typeof url === 'string')
+            .map(url => client.query(
+              'INSERT INTO product_images (product_id, image_url) VALUES ($1, $2)',
+              [id, url]
+            ));
+          await Promise.all(imageQueries);
+        }
       }
 
-      if (Array.isArray(videos) && videos.length > 0) {
-        const videoQueries = videos
-          .filter(url => url && typeof url === 'string')
-          .map(url => client.query(
-            'INSERT INTO product_videos (product_id, video_url) VALUES ($1, $2)',
-            [id, url]
-          ));
-        await Promise.all(videoQueries);
+      if (videos !== undefined) {
+        await client.query('DELETE FROM product_videos WHERE product_id = $1', [id]);
+        if (Array.isArray(videos) && videos.length > 0) {
+          const videoQueries = videos
+            .filter(url => url && typeof url === 'string')
+            .map(url => client.query(
+              'INSERT INTO product_videos (product_id, video_url) VALUES ($1, $2)',
+              [id, url]
+            ));
+          await Promise.all(videoQueries);
+        }
       }
 
       await client.query('COMMIT');
